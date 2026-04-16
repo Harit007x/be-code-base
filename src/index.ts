@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import { router } from "./routes/routes";
 import { createServer } from "http";
 import { prisma } from "./utils/db";
+import { errorHandler } from "./middlewares/errorHandler";
 
 dotenv.config();
 
@@ -21,6 +22,8 @@ app.use(cookieParser());
 app.use(express.json());
 
 app.use("/api", router);
+
+app.use(errorHandler as unknown as express.ErrorRequestHandler);
 
 const server = createServer(app);
 
