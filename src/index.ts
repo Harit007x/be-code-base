@@ -1,13 +1,15 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
+import dotenvFlow from "dotenv-flow";
 import { router } from "./routes/routes";
 import { createServer } from "http";
 import { prisma } from "./utils/db";
 import { errorHandler } from "./middlewares/errorHandler";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./utils/swagger";
 
-dotenv.config();
+dotenvFlow.config();
 
 const app = express();
 
@@ -22,6 +24,7 @@ app.use(cookieParser());
 app.use(express.json());
 
 app.use("/api", router);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use(errorHandler as unknown as express.ErrorRequestHandler);
 
