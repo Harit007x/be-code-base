@@ -39,40 +39,45 @@ export const resetPasswordSchema = z.object({
 
 // Controllers
 const signup = async (req: Request, res: Response): Promise<void> => {
-  const { name, email, password } = req.body;
+  try {
+    const { name, email, password } = req.body;
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-  if (existingUser) {
-    res.status(400).json({ success: false, message: "User already exists" });
-    return;
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      res.status(400).json({ success: false, message: "User already exists" });
+      return;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = await prisma.user.create({
+      data: { name, email, password: hashedPassword },
+    });
+
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
+
+    // Save refresh token to db
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
+    setAuthCookies(res, accessToken, refreshToken);
+
+    res.status(201).json({
+      success: true,
+      data: { id: user.id, name: user.name, email: user.email },
+      accessToken,
+    });
+  } catch (error) {
+    console.error("Signup Error:", error);
+    res.status(500).json({ success: false, message: "Internal server error during signup" });
   }
-
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
-
-  const user = await prisma.user.create({
-    data: { name, email, password: hashedPassword },
-  });
-
-  const accessToken = generateAccessToken(user.id);
-  const refreshToken = generateRefreshToken(user.id);
-
-  // Save refresh token to db
-  await prisma.refreshToken.create({
-    data: {
-      token: refreshToken,
-      userId: user.id,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-    },
-  });
-
-  setAuthCookies(res, accessToken, refreshToken);
-
-  res.status(201).json({
-    success: true,
-    data: { id: user.id, name: user.name, email: user.email },
-    accessToken,
-  });
 };
 
 const login = async (req: Request, res: Response): Promise<void> => {
@@ -197,7 +202,7 @@ const forgotPassword = async (req: Request, res: Response): Promise<void> => {
 
   const resetToken = crypto.randomBytes(32).toString("hex");
   const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
-  
+
   await prisma.user.update({
     where: { email },
     data: {
